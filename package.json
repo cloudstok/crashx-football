@@ -1,7 +1,7 @@
 {
-  "name": "pushpa_rani-node",
+  "name": "CrashX-Football-Edition",
   "version": "1.0.0",
-  "description": "",
+  "description": "Crash Game",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

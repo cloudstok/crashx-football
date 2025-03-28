@@ -1,7 +1,7 @@
 const routes = require('express').Router()
 
 routes.get('/', async (req, res) => {
-    res.send({ "msg": "Testing Successfully for Pushpa Rani 👍" })
+    res.send({ status: true, "msg": "CrashX Football Edition is up and running" });
 });
 
 
