@@ -8,7 +8,7 @@ const addCashout = async (data) => {
     try {
         const { name, balance, avatar, lobby_id, bet_amount, user_id, operator_id, max_mult, bet_id, maxAutoCashout, final_amount } = data;
         const autoCashout = maxAutoCashout === 'null' ? null : maxAutoCashout;
-        await write(SQL_CASHOUT, [bet_id, lobby_id, decodeURIComponent(user_id), operator_id, name, bet_amount, autoCashout, balance, avatar, max_mult, final_amount, "cashout", ])
+        await write(SQL_CASHOUT, [bet_id, lobby_id, decodeURIComponent(user_id), operator_id, name, bet_amount, autoCashout, balance, avatar, max_mult, final_amount, "cashout"])
         console.info("Cashout Data Inserted Successfully")
     } catch (er) {
         console.error(er);
