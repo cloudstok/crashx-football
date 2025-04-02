@@ -1,7 +1,7 @@
 
-DROP DATABASE if EXISTS `CrashX_Football_db`;
-CREATE DATABASE IF NOT EXISTS `CrashX_Football_db`;
-use `CrashX_Football_db`;
+DROP DATABASE if EXISTS `crashx_football_game`;
+CREATE DATABASE IF NOT EXISTS `crashx_football_game`;
+use `crashx_football_game`;
 
  CREATE TABLE IF NOT EXISTS `settlement`(
    `settlement_id` int NOT NULL AUTO_INCREMENT,
