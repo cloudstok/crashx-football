@@ -35,8 +35,8 @@ let lobbyData = {};
 
 const currentRoundBets = (socket) => {
     const betData = {};
-    const filteredBets = bets.map(e=> cleanData(e, 'bet'));
-    const filteredSettlements = settlements.map(e=> cleanData(e, 'cashout'));
+    const filteredBets = bets.map(e => cleanData(e, 'bet'));
+    const filteredSettlements = settlements.map(e => cleanData(e, 'cashout'));
     betData.bets = filteredBets;
     betData.settlement = filteredSettlements;
     return socket.emit('game_status', JSON.stringify(betData));
@@ -70,7 +70,7 @@ const placeBet = async (io, socket, [lobby_id, max_mult, status, user_id, operat
         let { name, balance, avatar, session_token, game_id } = userData;
         const betObj = { bet_id, name, balance, avatar, token: session_token, maxAutoCashout, socket_id: socket.id, game_id };
         if (bet_amount && bet_amount > +balance) {
-            return logEventAndEmitResponse(socket, data, 'Insufficient Balance', 'bet');
+            return logEventAndEmitResponse(socket, data, `Insufficient Balance ${bet_id}`, 'bet');
         }
         const webhookData = await prepareDataForWebhook({ ...betObj, bet_amount, lobby_id, user_id }, "DEBIT", socket);
         betObj.webhookData = webhookData;
@@ -129,7 +129,6 @@ const removeBetObjAndEmit = async (bet_id, bet_amount, user_id, operator_id, soc
             io.to(socket_id).emit("info", userData);
         }
         failedBetsLogger.error(JSON.stringify({ req: bet_id, res: 'bets cancelled by upstream' }));
-        io.emit("bet", { bet_id: bet_id, action: "cancel" });
     } catch (err) {
         console.error(`[ERR] while removing bet from betObj is::`, err);
     } finally {
@@ -137,30 +136,29 @@ const removeBetObjAndEmit = async (bet_id, bet_amount, user_id, operator_id, soc
     }
 }
 
-
 const settleCallBacks = async (io) => {
     try {
         if (bets.length === 0) return;
         console.log(`Settling webhook callbacks`);
         const results = await Promise.allSettled(bets.map(async (bet) => {
-            try{
+            try {
                 const result = await postDataToSourceForBet(bet);
                 return result;
             } catch (error) {
                 return error;
             }
         }));
-        
+
         const processResults = results.map(result => {
-            if(result.status === 'fulfilled'){
+            if (result.status === 'fulfilled') {
                 return handleFulfilledResult(result.value, io);
-            }else{
+            } else {
                 console.error(`Error processing bet: ${result.reason}`);
                 return handleRejectedResult(result.reason, io);
             }
         });
 
-        await Promise.all(processResults);
+        await Promise.allSettled(processResults);
     } catch (err) {
         console.error(err);
     }
@@ -169,13 +167,16 @@ const settleCallBacks = async (io) => {
 
 const handleFulfilledResult = async (value, io) => {
     try {
+        if (!value || !io) return;
         const { socket_id, status, bet_id } = value;
+        if (!socket_id || !bet_id) return;
         const [b, lobby_id, bet_amount, user_id, operator_id, identifier] = bet_id.split(":");
         if (status === 200) {
             await insertBets(value);
         } else {
+            io.to(socket_id).emit("bet", { bet_id: bet_id, action: "cancel" });
+            io.to(socket_id).emit("betError", `bets cancelled by upstream ${bet_id}`);
             await removeBetObjAndEmit(bet_id, bet_amount, user_id, operator_id, socket_id, io);
-            io.to(socket_id).emit("betError", "bets cancelled by upstream");
         }
     } catch (err) {
         console.error(err);
@@ -185,8 +186,9 @@ const handleFulfilledResult = async (value, io) => {
 
 const handleRejectedResult = async (reason, io) => {
     try {
-        if(!reason || !io) return;
+        if (!reason || !io) return;
         const { response, socket_id, bet_id } = reason;
+        if (!socket_id || !bet_id) return;
         const [b, lobby_id, bet_amount, user_id, operator_id, identifier] = bet_id.split(":");
         if (response?.data?.msg === "Invalid Token or session timed out") {
             await removeBetObjAndEmit(bet_id, bet_amount, user_id, operator_id, socket_id, io);
@@ -195,7 +197,6 @@ const handleRejectedResult = async (reason, io) => {
         }
         await removeBetObjAndEmit(bet_id, bet_amount, user_id, operator_id, socket_id, io);
         io.to(socket_id).emit("betError", "bets cancelled by upstream");
-
     } catch (er) {
         console.error(er);
     }
@@ -287,6 +288,9 @@ const cashOut = async (io, socket, [max_mult, status, maxAutoCashout, ...betId],
         max_mult = (betObj.maxAutoCashout !== 'null' && maxAutoCashout !== 'null' && Number(betObj.maxAutoCashout) == Number(maxAutoCashout) && Number(maxAutoCashout) <= Number(lobbyData['ongoingMaxMult'])) ? betObj.maxAutoCashout : max_mult;
         betObj.maxAutoCashout = (maxAutoCashout === 'null') ? 'null' : betObj.maxAutoCashout;
 
+        if (Number(max_mult) > Number(lobbyData['ongoingMaxMult']) || isNaN(Number(lobbyData['ongoingMaxMult']))) {
+            return logEventAndEmitResponse(socket, CashObj, `Cheat Invalid Cashout Multiplier, Current multiplier ${lobbyData['ongoingMaxMult']}, recieved ${max_mult}`, 'cashout');
+        }
 
         const userBets = bets.filter(e => e.token === betObj.token);
         betObj.balance = userBets.length > 1 ? +userBets[1].balance : betObj.balance;
@@ -310,7 +314,7 @@ const cashOut = async (io, socket, [max_mult, status, maxAutoCashout, ...betId],
         let userData = await getUserData(user_id, operator_id);
         const key = `${operator_id}:${user_id}`;
         try {
-            await sendToQueue('', 'games_cashout', JSON.stringify({...webhookData, token: betObj.token, operatorId: operator_id}));
+            await sendToQueue('', 'games_cashout', JSON.stringify({ ...webhookData, token: betObj.token, operatorId: operator_id }));
             if (userData) {
                 userData.balance = betObj.balance;
                 await setCache(key, JSON.stringify(userData));
@@ -423,19 +427,19 @@ const createRoundStats = (data, settlements) => {
 
 
 
-const disConnect = async(io, socket) => {
-    if(bets.length > 0){
-        await Promise.all(bets.map(async bet=> {
-            if(!bet.hasOwnProperty('plane_status') && bet.socket_id == socket.id && lobbyData['status'] == '1'){
+const disConnect = async (io, socket) => {
+    if (bets.length > 0) {
+        await Promise.all(bets.map(async bet => {
+            if (!bet.hasOwnProperty('plane_status') && bet.socket_id == socket.id && lobbyData['status'] == '1') {
                 await cashOut(io, socket, [lobbyData['ongoingMaxMult'], lobbyData['status'], bet.maxAutoCashout, ...bet.bet_id.split(':')]);
             };
         }));
-        if(lobbyData['status'] == '0'){
-            bets = bets.filter(bet=> bet.socket_id != socket.id);
+        if (lobbyData['status'] == '0') {
+            bets = bets.filter(bet => bet.socket_id != socket.id);
         }
     }
 }
 
-const getCurrentLobby =()=> lobbyData;
+const getCurrentLobby = () => lobbyData;
 
-module.exports = { initBet, settleBet, settleCallBacks, handleRejectedResult, setCurrentLobby, disConnect, currentRoundBets, getCurrentLobby};
+module.exports = { initBet, settleBet, settleCallBacks, handleRejectedResult, setCurrentLobby, disConnect, currentRoundBets, getCurrentLobby };
