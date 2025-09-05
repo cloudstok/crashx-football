@@ -285,7 +285,10 @@ const cashOut = async (io, socket, [max_mult, status, maxAutoCashout, isAutoCash
         const betObj = bets.find(e => e.bet_id === betId);
         if (!betObj) return logEventAndEmitResponse(socket, CashObj, 'No active bet for the event', 'cashout');
         Object.assign(betObj, { lobby_id, bet_amount, user_id, operator_id });
-        max_mult = (betObj.maxAutoCashout !== 'null' && maxAutoCashout !== 'null' && Number(betObj.maxAutoCashout) == Number(maxAutoCashout) && Number(maxAutoCashout) <= Number(lobbyData['ongoingMaxMult'])) ? betObj.maxAutoCashout : max_mult;
+
+        if (parseFloat(max_mult) && parseFloat(maxAutoCashout) && parseFloat(max_mult) > parseFloat(maxAutoCashout)) max_mult = parseFloat(maxAutoCashout);
+        else max_mult = (betObj.maxAutoCashout !== 'null' && maxAutoCashout !== 'null' && Number(betObj.maxAutoCashout) == Number(maxAutoCashout) && Number(maxAutoCashout) <= Number(lobbyData['ongoingMaxMult'])) ? betObj.maxAutoCashout : max_mult;
+
         betObj.maxAutoCashout = (maxAutoCashout === 'null') ? 'null' : betObj.maxAutoCashout;
 
         if (Number(max_mult) > Number(lobbyData['ongoingMaxMult']) || isNaN(Number(lobbyData['ongoingMaxMult']))) {
