@@ -6,6 +6,7 @@ const createLogger = require('../../utilities/logger');
 const logger = createLogger('Plane', 'jsonl');
 const planeErrorLogger = createLogger('PlaneError', 'log');
 const { read } = require('../../utilities/db-connection');
+const { getMult } = require('../game-logic');
 
 let lobbiesMult = [];
 
@@ -58,7 +59,7 @@ const initLobby = async (io) => {
     let inc = 1
     const end_delay = 6;
     odds.total_players = await getPlayerCount();
-    const max_mult = generateOdds().mult;
+    const max_mult = getMult();
 
     for (let x = 0; x < start_delay; x++) {
         io.emit("plane", `${lobbyId}:${inc}:0`);
